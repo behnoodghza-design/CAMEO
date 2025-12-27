@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/schemas/electron-builder.schema.json",
+  "appId": "com.cameo.offline",
+  "productName": "CameoChemicalOfflineApp",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/main/**/*",
+    "dist/preload/**/*",
+    "dist/renderer/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "resources",
+      "to": "resources",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+      "to": "resources/sql-wasm.wasm"
+    }
+  ],
+  "win": {
+    "target": ["nsis"],
+    "artifactName": "${productName}-Setup-${version}.${ext}"
+  }
+}
