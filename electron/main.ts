@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
+import * as http from 'http';
+import * as https from 'https';
 import { initDatabases, closeDatabases, getChemicalsDB, getUserDB, saveUserDB } from './database/index.js';
 
 let mainWindow: BrowserWindow | null = null;
@@ -11,17 +13,23 @@ async function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '../preload/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
 
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+    const devUrl = 'http://localhost:5173';
+    const devOk = await waitForDevServer(devUrl, 30, 500).catch(() => false);
+    if (devOk) {
+      await loadRendererWithRetry(devUrl);
+      mainWindow.webContents.openDevTools();
+    } else {
+      await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    }
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
   mainWindow.on('closed', () => {
@@ -43,6 +51,37 @@ app.on('activate', () => {
     createWindow();
   }
 });
+
+async function loadRendererWithRetry(url: string, attempts = 20, delayMs = 500): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await mainWindow?.loadURL(url);
+      return;
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+  }
+}
+
+async function waitForDevServer(url: string, attempts = 30, delayMs = 500): Promise<boolean> {
+  const isHttps = url.startsWith('https');
+  const client = isHttps ? https : http;
+
+  for (let i = 0; i < attempts; i++) {
+    const ok = await new Promise<boolean>((resolve) => {
+      const req = client.get(url, (res) => {
+        res.resume();
+        resolve(res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 500);
+      });
+      req.on('error', () => resolve(false));
+      req.end();
+    });
+    if (ok) return true;
+    await new Promise((res) => setTimeout(res, delayMs));
+  }
+  return false;
+}
 
 // IPC Handlers
 ipcMain.handle('db:search', async (_event, query: string) => {

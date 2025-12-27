@@ -1,7 +1,9 @@
 import { app, ipcMain, BrowserWindow } from "electron";
 import * as path from "path";
+import * as http from "http";
+import * as https from "https";
 import initSqlJs from "sql.js";
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
 const __dirname = import.meta.dirname;
@@ -9,15 +11,33 @@ const require2 = __cjs_mod__.createRequire(import.meta.url);
 let chemicalsDB = null;
 let userDB = null;
 let SQL = null;
+function resolveResourcePath(...segments) {
+  const projectRoot = path.join(__dirname, "..", "..");
+  const prodResources = path.join(process.resourcesPath, "resources", ...segments);
+  const projectResources = path.join(projectRoot, "resources", ...segments);
+  const devData = path.join(projectRoot, "data", ...segments);
+  const devRoot = path.join(projectRoot, ...segments);
+  const cwdPath = path.join(process.cwd(), ...segments);
+  if (fs.existsSync(prodResources)) return prodResources;
+  if (fs.existsSync(projectResources)) return projectResources;
+  if (fs.existsSync(devData)) return devData;
+  if (fs.existsSync(devRoot)) return devRoot;
+  if (fs.existsSync(cwdPath)) return cwdPath;
+  return void 0;
+}
 async function initDatabases() {
   SQL = await initSqlJs({
     locateFile: (file) => {
-      const wasmPath = path.join(process.resourcesPath, "resources", file);
-      if (fs.existsSync(wasmPath)) return wasmPath;
+      const wasmPath = resolveResourcePath(file);
+      if (wasmPath && fs.existsSync(wasmPath)) return wasmPath;
       return path.join(__dirname, "..", "..", "node_modules", "sql.js", "dist", file);
     }
   });
-  const chemicalsPath = path.join(process.resourcesPath, "resources", "chemicals.db");
+  const cameoPath = resolveResourcePath("cameo.sqlite");
+  const chemicalsPath = cameoPath && fs.existsSync(cameoPath) ? cameoPath : resolveResourcePath("chemicals.db");
+  if (!chemicalsPath || !fs.existsSync(chemicalsPath)) {
+    throw new Error(`chemicals database not found (checked: ${cameoPath}, ${chemicalsPath})`);
+  }
   const chemicalsBuffer = fs.readFileSync(chemicalsPath);
   chemicalsDB = new SQL.Database(chemicalsBuffer);
   const userDataPath = app.getPath("userData");
@@ -67,16 +87,22 @@ async function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "../preload/preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
   if (process.env.NODE_ENV === "development") {
-    mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools();
+    const devUrl = "http://localhost:5173";
+    const devOk = await waitForDevServer(devUrl, 30, 500).catch(() => false);
+    if (devOk) {
+      await loadRendererWithRetry(devUrl);
+      mainWindow.webContents.openDevTools();
+    } else {
+      await mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+    }
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+    await mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -94,6 +120,34 @@ app.on("activate", () => {
     createWindow();
   }
 });
+async function loadRendererWithRetry(url, attempts = 20, delayMs = 500) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await mainWindow?.loadURL(url);
+      return;
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+  }
+}
+async function waitForDevServer(url, attempts = 30, delayMs = 500) {
+  const isHttps = url.startsWith("https");
+  const client = isHttps ? https : http;
+  for (let i = 0; i < attempts; i++) {
+    const ok = await new Promise((resolve) => {
+      const req = client.get(url, (res) => {
+        res.resume();
+        resolve(res.statusCode !== void 0 && res.statusCode >= 200 && res.statusCode < 500);
+      });
+      req.on("error", () => resolve(false));
+      req.end();
+    });
+    if (ok) return true;
+    await new Promise((res) => setTimeout(res, delayMs));
+  }
+  return false;
+}
 ipcMain.handle("db:search", async (_event, query) => {
   try {
     const db = getChemicalsDB();
