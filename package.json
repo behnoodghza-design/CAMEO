@@ -6,6 +6,7 @@
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "web": "vite",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit"
