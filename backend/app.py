@@ -1,7 +1,15 @@
 import os
 import sqlite3
-from flask import Flask, jsonify, request
+import logging
+from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
+
+from logic.reactivity_engine import ReactivityEngine
+from logic.constants import Compatibility, COMPATIBILITY_MAP
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -10,6 +18,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 CHEMICALS_DB_PATH = os.path.join(DATA_DIR, 'chemicals.db')
 USER_DB_PATH = os.path.join(DATA_DIR, 'user.db')
+
+# Initialize Reactivity Engine
+reactivity_engine = ReactivityEngine(CHEMICALS_DB_PATH)
 
 def get_chemicals_db_connection():
     conn = sqlite3.connect(CHEMICALS_DB_PATH)
@@ -57,7 +68,6 @@ def search():
             SELECT id, name, synonyms 
             FROM chemicals 
             WHERE name LIKE ? OR synonyms LIKE ?
-            LIMIT 500
         """
         search_term = f'%{query}%'
         cursor.execute(sql, (search_term, search_term))
@@ -154,6 +164,143 @@ def remove_favorite(chemical_id):
     except Exception as e:
         print(f"Remove favorite error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/mixer')
+def mixer_page():
+    """Render the chemical mixer UI"""
+    return render_template('mixer.html')
+
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_chemicals():
+    """
+    ═══════════════════════════════════════════════════════════
+    POST /api/analyze
+    Analyze chemical compatibility - SAFETY-CRITICAL ENDPOINT
+    ═══════════════════════════════════════════════════════════
+    
+    Request Body:
+    {
+        "chemical_ids": [1, 5, 23],
+        "options": {
+            "include_water_check": true
+        }
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'chemical_ids' not in data:
+            return jsonify({
+                'success': False,
+                'error': {
+                    'code': 'MISSING_CHEMICAL_IDS',
+                    'message': 'Chemical IDs list is required'
+                }
+            }), 400
+        
+        chemical_ids = data['chemical_ids']
+        options = data.get('options', {})
+        
+        if len(chemical_ids) < 2:
+            return jsonify({
+                'success': False,
+                'error': {
+                    'code': 'INSUFFICIENT_CHEMICALS',
+                    'message': 'At least 2 chemicals required for analysis'
+                }
+            }), 400
+        
+        # Run analysis
+        result = reactivity_engine.analyze(
+            chemical_ids=chemical_ids,
+            include_water_check=options.get('include_water_check', True)
+        )
+        
+        # Convert to JSON-friendly format
+        compat_info = COMPATIBILITY_MAP[result.overall_compatibility]
+        
+        response = {
+            'success': True,
+            'data': {
+                'meta': {
+                    'timestamp': result.timestamp,
+                    'chemical_count': result.chemical_count,
+                    'audit_id': result.audit_id
+                },
+                'overall': {
+                    'compatibility': result.overall_compatibility.value,
+                    'label': compat_info.label_en,
+                    'color': compat_info.color_hex,
+                    'action': compat_info.action_required
+                },
+                'chemicals': result.chemicals,
+                'matrix': [
+                    [
+                        {
+                            'compatibility': cell.compatibility.value if cell else None,
+                            'hazards': cell.hazards if cell else [],
+                            'gases': cell.gas_products if cell else [],
+                            'color': COMPATIBILITY_MAP[cell.compatibility].color_hex if cell else '#6B7280'
+                        }
+                        for cell in row
+                    ]
+                    for row in result.matrix
+                ],
+                'critical_pairs': result.critical_pairs,
+                'warnings': result.warnings
+            }
+        }
+        
+        return jsonify(response)
+    
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': {
+                'code': 'VALIDATION_ERROR',
+                'message': str(e)
+            }
+        }), 400
+    
+    except Exception as e:
+        logger.error(f"Analysis error: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': {
+                'code': 'INTERNAL_ERROR',
+                'message': 'Internal server error'
+            }
+        }), 500
+
+
+@app.route('/api/reactivity/stats', methods=['GET'])
+def get_reactivity_stats():
+    """Get reactivity database statistics"""
+    try:
+        stats = reactivity_engine.get_statistics()
+        return jsonify({'success': True, 'data': stats})
+    except Exception as e:
+        logger.error(f"Stats error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/reactive-groups', methods=['GET'])
+def get_reactive_groups():
+    """Get list of all reactive groups"""
+    try:
+        conn = get_chemicals_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, description FROM reacts ORDER BY id")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        groups = [{'id': r['id'], 'name': r['name'], 'description': r['description']} for r in rows]
+        return jsonify({'success': True, 'data': groups})
+    except Exception as e:
+        logger.error(f"Get groups error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
