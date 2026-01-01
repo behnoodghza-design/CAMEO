@@ -1,0 +1,70 @@
+{
+  "project_info": {
+    "name": "CAMEO",
+    "type": "Chemical Safety Platform",
+    "description": "Enterprise-grade HSE Dashboard for chemical compatibility analysis",
+    "repository": "git@github.com:behnoodghza-design/CAMEO.git",
+    "last_commit": "ef6df8f - Fix 404 Error - Add Root Route"
+  },
+  "architecture": {
+    "backend": {
+      "framework": "Flask",
+      "main_file": "backend/app.py",
+      "api_endpoints": [
+        "/api/search",
+        "/api/analyze",
+        "/api/reactivity/stats",
+        "/api/reactive-groups",
+        "/mixer"
+      ],
+      "database": {
+        "type": "SQLite",
+        "files": ["chemicals.db", "user.db"],
+        "location": "backend/data/"
+      }
+    },
+    "frontend": {
+      "framework": "React",
+      "main_file": "src/App.tsx",
+      "ui_framework": "Tailwind CSS + Alpine.js",
+      "build_tool": "Vite"
+    }
+  },
+  "key_features": {
+    "chemical_search": "Search chemicals by name/synonyms",
+    "compatibility_matrix": "Interactive compatibility analysis",
+    "reactivity_engine": "Worst-case aggregation + hazard detection",
+    "enterprise_ui": "Clean Industrial aesthetic design"
+  },
+  "critical_files": {
+    "backend": [
+      "backend/app.py",
+      "backend/logic/reactivity_engine.py",
+      "backend/logic/constants.py",
+      "backend/templates/mixer.html",
+      "backend/templates/base.html"
+    ],
+    "frontend": [
+      "src/App.tsx",
+      "src/services/ChemicalSearchService.ts",
+      "src/types/index.ts",
+      "vite.config.ts"
+    ],
+    "data": [
+      "backend/data/chemicals.db",
+      "backend/data/user.db"
+    ]
+  },
+  "recent_changes": [
+    {
+      "date": "2026-01-01",
+      "description": "Enterprise UI Overhaul - World-Class HSE Dashboard",
+      "impact": "Complete UI redesign with Tailwind CSS and Alpine.js"
+    },
+    {
+      "date": "2026-01-01",
+      "description": "Fix 404 Error - Add Root Route",
+      "impact": "Added root route handling"
+    }
+  ]
+}

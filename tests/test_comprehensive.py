@@ -7,8 +7,8 @@ import sqlite3
 from playwright.sync_api import Page, expect
 import json
 
-# Path to the actual database
-DB_PATH = "resources/chemicals.db"
+# Path to the actual databases
+DB_PATH = "backend/data/chemicals.db"
 USER_DB_PATH = "backend/data/user.db"
 
 @pytest.fixture
