@@ -106,6 +106,61 @@ def get_chemical(chemical_id):
         print(f"Get chemical error: {e}")
         return jsonify(None), 500
 
+
+@app.route('/chemical/<int:chemical_id>')
+def chemical_detail_page(chemical_id):
+    """Render rich detail workspace for a single chemical"""
+    try:
+        conn = get_chemicals_db_connection()
+        cursor = conn.cursor()
+        
+        # Get main chemical data
+        cursor.execute('SELECT * FROM chemicals WHERE id = ?', (chemical_id,))
+        row = cursor.fetchone()
+        chemical = dict(row) if row else None
+        
+        if chemical:
+            # Get CAS numbers
+            cursor.execute('SELECT cas_id FROM chemical_cas WHERE chem_id = ? ORDER BY sort', (chemical_id,))
+            cas_rows = cursor.fetchall()
+            chemical['cas_numbers'] = [r['cas_id'] for r in cas_rows] if cas_rows else []
+            
+            # Get UN/NA numbers
+            cursor.execute('SELECT unna_id FROM chemical_unna WHERE chem_id = ? ORDER BY sort', (chemical_id,))
+            unna_rows = cursor.fetchall()
+            chemical['un_numbers'] = [r['unna_id'] for r in unna_rows] if unna_rows else []
+            
+            # Get ICSC info
+            cursor.execute('SELECT icsc, icsc_name FROM chemical_icsc WHERE chem_id = ? ORDER BY sort', (chemical_id,))
+            icsc_rows = cursor.fetchall()
+            chemical['icsc_codes'] = [{'code': r['icsc'], 'name': r['icsc_name']} for r in icsc_rows] if icsc_rows else []
+            
+            # Get reactive groups
+            cursor.execute('''
+                SELECT rg.id, rg.name, rg.description 
+                FROM reacts rg 
+                JOIN mm_chemical_react crg ON rg.id = crg.react_id 
+                WHERE crg.chem_id = ?
+            ''', (chemical_id,))
+            group_rows = cursor.fetchall()
+            chemical['reactive_groups'] = [dict(r) for r in group_rows] if group_rows else []
+            
+            # Extract ERG guide number from isolation field if present
+            erg_match = None
+            if chemical.get('isolation'):
+                import re
+                match = re.search(r'Guide\s+(\d+)', chemical['isolation'])
+                if match:
+                    erg_match = match.group(1)
+            chemical['erg_guide'] = erg_match
+        
+        conn.close()
+    except Exception as e:
+        logger.error(f"Chemical detail error: {e}")
+        chemical = None
+
+    return render_template('chemical_detail.html', chemical=chemical)
+
 @app.route('/api/favorites', methods=['GET'])
 def get_favorites():
     try:

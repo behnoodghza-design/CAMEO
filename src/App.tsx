@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Link, useParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { ChemicalSearchService } from './services/ChemicalSearchService';
 import type { ChemicalSummary, Chemical } from './types';
 
-function App() {
+function SearchPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ChemicalSummary[]>([]);
   const [selectedChemical, setSelectedChemical] = useState<Chemical | null>(null);
@@ -72,16 +73,29 @@ function App() {
               <h2 className="text-xl font-semibold mb-4">Results ({results.length})</h2>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {results.map((item) => (
-                  <button
+                  <div
                     key={item.id}
-                    onClick={() => handleSelectChemical(item.id)}
-                    className="w-full text-left p-3 rounded hover:bg-blue-50 border border-gray-200 transition-colors"
+                    className="flex items-start gap-3 p-3 rounded border border-gray-200 hover:bg-blue-50 transition-colors"
                   >
-                    <div className="font-medium text-gray-900">{item.name}</div>
-                    {item.synonyms && (
-                      <div className="text-sm text-gray-500 truncate">{item.synonyms}</div>
-                    )}
-                  </button>
+                    <button
+                      onClick={() => handleSelectChemical(item.id)}
+                      className="flex-1 text-left"
+                    >
+                      <div className="font-medium text-gray-900">{item.name}</div>
+                      {item.synonyms && (
+                        <div className="text-sm text-gray-500 truncate">{item.synonyms}</div>
+                      )}
+                    </button>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        window.open(`/chemical/${item.id}`, '_blank', 'noopener');
+                      }}
+                      className="px-3 py-1 text-sm font-medium border border-blue-200 text-blue-700 rounded hover:bg-blue-100"
+                    >
+                      Details
+                    </button>
+                  </div>
                 ))}
                 {results.length === 0 && !loading && (
                   <p className="text-gray-500 text-center py-4">No results</p>
@@ -148,6 +162,57 @@ function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ChemicalDetailPage() {
+  const { chemicalId } = useParams();
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-12">
+        <div className="mb-8">
+          <Link to="/" className="text-blue-600 hover:underline">
+            ← Back to search
+          </Link>
+        </div>
+        <div className="bg-white rounded-xl shadow-lg p-8 border border-dashed border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Chemical Detail Workspace
+          </h1>
+          <p className="text-gray-600 mb-6">
+            Detailed dossier for chemical <span className="font-semibold">#{chemicalId}</span> will appear
+            here soon. This dedicated tab is ready to host expanded safety, response, and physical
+            property data once it becomes available.
+          </p>
+          <div className="grid gap-4 text-gray-500">
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+              <p className="text-sm uppercase tracking-wide text-gray-400">Status</p>
+              <p className="text-base">Coming soon • data pipeline pending</p>
+            </div>
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+              <p className="text-sm uppercase tracking-wide text-gray-400">Next steps</p>
+              <ul className="list-disc list-inside">
+                <li>Ingest extended NOAA response data</li>
+                <li>Render structured physical property tables</li>
+                <li>Enable PDF export for field teams</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<SearchPage />} />
+        <Route path="/chemical/:chemicalId" element={<ChemicalDetailPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
