@@ -37,6 +37,15 @@
     .nfpa-flam { background: #ef4444; }
     .nfpa-react { background: #eab308; color: #0f172a; }
     .nfpa-special { background: #fff; color: #0f172a; }
+    .nfpa-special span {
+        transform: none;
+    }
+    .nfpa-special-water span {
+        text-decoration: line-through;
+        text-decoration-thickness: 4px;
+        text-decoration-color: #0f172a;
+        text-decoration-skip-ink: none;
+    }
     .nfpa-flex {
         display: flex;
         flex-wrap: wrap;
@@ -56,6 +65,40 @@
         }
     }
 </style>
+{% set nfpa_special_code = '' %}
+{% set nfpa_special_label = chemical.nfpa_special if chemical else '' %}
+{% set nfpa_special_description = chemical.nfpa_special if chemical else '' %}
+{% if chemical and chemical.nfpa_special %}
+    {% set _nfpa_special_map = {
+        'oxidizer': {'code': 'OX', 'label': 'Oxidizer', 'description': 'Supports combustion; keep away from fuels.'},
+        'oxidiser': {'code': 'OX', 'label': 'Oxidizer', 'description': 'Supports combustion; keep away from fuels.'},
+        'ox': {'code': 'OX', 'label': 'Oxidizer', 'description': 'Supports combustion; keep away from fuels.'},
+        'water reactive': {'code': 'W', 'label': 'No Water', 'description': 'Reacts violently or explosively with water.'},
+        'reacts with water': {'code': 'W', 'label': 'No Water', 'description': 'Reacts violently or explosively with water.'},
+        'water reactive - no water': {'code': 'W', 'label': 'No Water', 'description': 'Reacts violently or explosively with water.'},
+        'no water': {'code': 'W', 'label': 'No Water', 'description': 'Reacts violently or explosively with water.'},
+        'water': {'code': 'W', 'label': 'No Water', 'description': 'Reacts violently or explosively with water.'},
+        'corrosive': {'code': 'COR', 'label': 'Corrosive', 'description': 'Causes rapid destruction of metal or tissue.'},
+        'acid': {'code': 'ACID', 'label': 'Acid', 'description': 'Corrosive acid – avoid contact with bases.'},
+        'alkali': {'code': 'ALK', 'label': 'Alkali', 'description': 'Corrosive base – avoid contact with acids.'},
+        'alkaline': {'code': 'ALK', 'label': 'Alkali', 'description': 'Corrosive base – avoid contact with acids.'},
+        'simple asphyxiant': {'code': 'SA', 'label': 'Simple Asphyxiant', 'description': 'Displaces oxygen; ventilate confined spaces.'},
+        'simple asphyxiant gas': {'code': 'SA', 'label': 'Simple Asphyxiant', 'description': 'Displaces oxygen; ventilate confined spaces.'},
+        'radioactive': {'code': 'RAD', 'label': 'Radioactive', 'description': 'Emits ionizing radiation; control exposure.'},
+        'polymerizable': {'code': 'P', 'label': 'Polymerizable', 'description': 'May polymerize explosively if not inhibited.'}
+    } %}
+    {% set _nfpa_special_normalized = chemical.nfpa_special | lower | trim %}
+    {% set _nfpa_special_entry = _nfpa_special_map.get(_nfpa_special_normalized) %}
+    {% if _nfpa_special_entry %}
+        {% set nfpa_special_code = _nfpa_special_entry.code %}
+        {% set nfpa_special_label = _nfpa_special_entry.label %}
+        {% set nfpa_special_description = _nfpa_special_entry.description %}
+    {% else %}
+        {% set nfpa_special_code = (_nfpa_special_normalized.split(' ')[0][:4]).upper() %}
+        {% set nfpa_special_label = chemical.nfpa_special %}
+        {% set nfpa_special_description = chemical.nfpa_special %}
+    {% endif %}
+{% endif %}
 {% if not chemical %}
 <div class="max-w-5xl mx-auto px-4 py-12">
     <div class="bg-white rounded-xl shadow-lg p-8 text-center">
@@ -141,8 +184,8 @@
                     <div class="nfpa-square nfpa-health">
                         <span>{{ chemical.nfpa_health if chemical.nfpa_health is not none else '?' }}</span>
                     </div>
-                    <div class="nfpa-square nfpa-special">
-                        <span>{{ chemical.nfpa_special if chemical.nfpa_special else '' }}</span>
+                    <div class="nfpa-square nfpa-special {{ 'nfpa-special-water' if nfpa_special_code == 'W' }}">
+                        <span>{{ nfpa_special_code if chemical.nfpa_special else '' }}</span>
                     </div>
                 </div>
             </div>
@@ -166,16 +209,18 @@
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 bg-yellow-500 rounded flex items-center justify-center text-white font-bold">{{ chemical.nfpa_react if chemical.nfpa_react is not none else '?' }}</div>
                     <div>
-                        <p class="text-sm font-semibold text-slate-900">Reactivity</p>
+                        <p class="text-sm font-semibold text-slate-900">Instability</p>
                         <p class="text-xs text-slate-600">Instability hazard</p>
                     </div>
                 </div>
                 {% if chemical.nfpa_special %}
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-white border-2 border-slate-300 rounded flex items-center justify-center text-slate-900 font-bold">{{ chemical.nfpa_special }}</div>
+                    <div class="w-8 h-8 bg-white border-2 border-slate-300 rounded flex items-center justify-center text-slate-900 font-bold {{ 'nfpa-special-water' if nfpa_special_code == 'W' }}">
+                        <span style="transform:none;">{{ nfpa_special_code }}</span>
+                    </div>
                     <div>
                         <p class="text-sm font-semibold text-slate-900">Special</p>
-                        <p class="text-xs text-slate-600">{{ chemical.nfpa_special }}</p>
+                        <p class="text-xs text-slate-600">{{ nfpa_special_description }}</p>
                     </div>
                 </div>
                 {% endif %}
