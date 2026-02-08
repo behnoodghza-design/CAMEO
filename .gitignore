@@ -1,5 +1,38 @@
-node_modules
+# Dependencies
+node_modules/
 __pycache__/
 *.pyc
-cameo.sqlite
-data
+*.pyo
+*.pyd
+
+# Python virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+
+# User database (generated at runtime)
+backend/data/user.db
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
